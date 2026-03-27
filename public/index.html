@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doffin Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+  :root {
+    --bg: #f5f7fa;
+    --surface: #ffffff;
+    --border: #e2e6ec;
+    --border-light: #edf0f4;
+    --text: #1a2332;
+    --text-secondary: #5a6578;
+    --text-muted: #8a94a6;
+    --blue: #3b7ddd;
+    --blue-light: #ebf2fc;
+    --blue-hover: #2d6bc4;
+    --green: #2d9f6f;
+    --green-light: #e8f7f0;
+    --green-hover: #248a5e;
+    --red: #d64545;
+    --red-light: #fceaea;
+    --red-hover: #c03636;
+    --orange: #e2853b;
+    --gray: #8a94a6;
+    --gray-light: #f0f2f5;
+    --gray-hover: #767f8f;
+    --radius: 6px;
+    --radius-lg: 10px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow: 0 1px 4px rgba(0,0,0,0.08);
+    --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
+    --transition: 150ms ease;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* ── Header ─────────────────────────────── */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .header-left h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  .header-left .subtitle {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .btn-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 16px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .btn-refresh:hover {
+    background: var(--gray-light);
+    border-color: #cdd3dc;
+  }
+  .btn-refresh:active { transform: scale(0.97); }
+  .btn-refresh.loading .refresh-icon { animation: spin 0.8s linear infinite; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Tabs ────────────────────────────────── */
+  .tabs-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .tab-btn {
+    position: relative;
+    background: none;
+    border: none;
+    padding: 12px 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .tab-btn::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 12px;
+    right: 12px;
+    height: 2px;
+    background: transparent;
+    border-radius: 2px 2px 0 0;
+    transition: background var(--transition);
+  }
+  .tab-btn:hover { color: var(--text-secondary); }
+  .tab-btn.active { color: var(--blue); }
+  .tab-btn.active::after { background: var(--blue); }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: var(--gray-light);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+  .tab-btn.active .badge {
+    background: var(--blue-light);
+    color: var(--blue);
+  }
+
+  .tabs-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+  }
+
+  .btn-export {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: var(--blue);
+    border: none;
+    border-radius: var(--radius);
+    padding: 7px 14px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #fff;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .btn-export:hover { background: var(--blue-hover); }
+  .btn-export:active { transform: scale(0.97); }
+  .btn-export.visible { display: inline-flex; }
+
+  /* ── Main content ───────────────────────── */
+  .main {
+    padding: 24px 32px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .table-wrapper {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 860px;
+  }
+
+  thead th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    white-space: nowrap;
+    user-select: none;
+  }
+  thead th.sortable {
+    cursor: pointer;
+    position: relative;
+  }
+  thead th.sortable:hover {
+    color: var(--text-primary);
+  }
+  thead th .sort-icon {
+    display: inline-block;
+    width: 14px;
+    margin-left: 4px;
+    vertical-align: middle;
+    opacity: 0.3;
+  }
+  thead th.sort-active .sort-icon {
+    opacity: 1;
+  }
+  thead th:first-child { border-radius: var(--radius-lg) 0 0 0; }
+  thead th:last-child { border-radius: 0 var(--radius-lg) 0 0; }
+
+  tbody tr {
+    transition: background var(--transition);
+  }
+  tbody tr:hover { background: #f9fafb; }
+  tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border-light); }
+
+  td {
+    padding: 10px 14px;
+    font-size: 0.84rem;
+    vertical-align: middle;
+  }
+
+  /* Column widths */
+  .col-name { min-width: 240px; }
+  .col-buyer { min-width: 160px; max-width: 220px; }
+  .col-place { min-width: 80px; }
+  .col-published { width: 96px; white-space: nowrap; }
+  .col-deadline { width: 96px; white-space: nowrap; }
+  .col-comment { min-width: 140px; }
+  .col-actions { width: 120px; white-space: nowrap; text-align: right; }
+
+  /* Name cell */
+  .notice-name {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .notice-name-text {
+    color: var(--text);
+    font-weight: 500;
+    cursor: pointer;
+    transition: color var(--transition);
+    line-height: 1.4;
+  }
+  .notice-name-text:hover { color: var(--blue); }
+
+  .doffin-link {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--text-muted);
+    transition: color var(--transition);
+  }
+  .doffin-link:hover { color: var(--blue); }
+  .doffin-link svg { display: block; }
+
+  .buyer-text {
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+  }
+
+  .place-text {
+    color: var(--text-secondary);
+  }
+
+  .date-text { color: var(--text-secondary); }
+  .date-text.deadline-soon {
+    color: var(--red);
+    font-weight: 600;
+  }
+
+  /* Comment field */
+  .comment-input {
+    width: 100%;
+    min-width: 120px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.82rem;
+    font-family: var(--font);
+    color: var(--text);
+    background: transparent;
+    transition: all var(--transition);
+    resize: none;
+    overflow: hidden;
+  }
+  .comment-input::placeholder { color: var(--text-muted); }
+  .comment-input:hover { border-color: var(--border); background: var(--surface); }
+  .comment-input:focus {
+    outline: none;
+    border-color: var(--blue);
+    background: var(--surface);
+    box-shadow: 0 0 0 3px rgba(59,125,221,0.12);
+  }
+
+  /* Action buttons */
+  .actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
+
+  .act-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    cursor: pointer;
+    transition: all var(--transition);
+    color: var(--text-muted);
+  }
+  .act-btn svg { width: 14px; height: 14px; }
+
+  .act-btn.act-relevant {
+    color: var(--green);
+    border-color: #c6e6d6;
+    background: var(--green-light);
+  }
+  .act-btn.act-relevant:hover {
+    background: #d1f0e0;
+    border-color: #a5d6bd;
+  }
+
+  .act-btn.act-enrolled {
+    color: var(--blue);
+    border-color: #c4d9f2;
+    background: var(--blue-light);
+  }
+  .act-btn.act-enrolled:hover {
+    background: #dae8f9;
+    border-color: #a8c8eb;
+  }
+
+  .act-btn.act-dismiss {
+    color: var(--red);
+    border-color: #ecc;
+    background: var(--red-light);
+  }
+  .act-btn.act-dismiss:hover {
+    background: #f8d8d8;
+    border-color: #daa;
+  }
+
+  .act-btn.act-undo {
+    color: var(--gray);
+    border-color: var(--border);
+    background: var(--gray-light);
+  }
+  .act-btn.act-undo:hover {
+    background: #e4e7ec;
+    border-color: #cdd3dc;
+  }
+
+  /* Expanded row */
+  .expand-row td {
+    padding: 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .expand-content {
+    padding: 16px 14px 16px 14px;
+    background: #fafbfc;
+    border-top: 1px solid var(--border-light);
+  }
+
+  .expand-description {
+    font-size: 0.84rem;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    max-width: 700px;
+    white-space: pre-line;
+    margin-bottom: 12px;
+  }
+
+  .expand-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.8rem;
+  }
+
+  .expand-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--blue);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color var(--transition);
+  }
+  .expand-link:hover { color: var(--blue-hover); text-decoration: underline; }
+
+  .expand-value {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* Empty state */
+  .empty-state {
+    padding: 60px 20px;
+    text-align: center;
+  }
+  .empty-state-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 16px;
+    color: var(--text-muted);
+    opacity: 0.4;
+  }
+  .empty-state-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  .empty-state-text {
+    font-size: 0.84rem;
+    color: var(--text-muted);
+  }
+
+  /* Loading state */
+  .loading-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+  }
+  .loading-dots::after {
+    content: "";
+    animation: dots 1.4s steps(4,end) infinite;
+  }
+  @keyframes dots {
+    0% { content: ""; }
+    25% { content: "."; }
+    50% { content: ".."; }
+    75% { content: "..."; }
+  }
+
+  /* Error state */
+  .error-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--red);
+    font-size: 0.84rem;
+  }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--text);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: var(--radius);
+    font-size: 0.82rem;
+    font-weight: 500;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 250ms ease;
+    pointer-events: none;
+    z-index: 1000;
+  }
+  .toast.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Tooltip on action buttons */
+  .act-btn { position: relative; }
+  .act-btn::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: #fff;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition);
+  }
+  .act-btn:hover::before { opacity: 1; }
+
+  /* Row fade-out animation */
+  .row-exit {
+    animation: rowFade 300ms ease forwards;
+  }
+  @keyframes rowFade {
+    to { opacity: 0; transform: translateX(16px); }
+  }
+
+  /* ── CPV Settings Panel ─────────────────── */
+  .header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-settings {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 16px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .btn-settings:hover {
+    background: var(--gray-light);
+    border-color: #cdd3dc;
+  }
+  .btn-settings:active { transform: scale(0.97); }
+
+  .cpv-panel {
+    display: none;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+  }
+  .cpv-panel.visible { display: block; }
+
+  .cpv-panel-inner {
+    max-width: 600px;
+  }
+  .cpv-panel-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+  .cpv-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .cpv-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--blue-light);
+    color: var(--blue);
+    border: 1px solid #c9ddf5;
+    border-radius: 20px;
+    padding: 4px 10px 4px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .cpv-tag button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: transparent;
+    color: var(--blue);
+    cursor: pointer;
+    border-radius: 50%;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+    transition: background var(--transition);
+  }
+  .cpv-tag button:hover {
+    background: rgba(59,125,221,0.15);
+  }
+  .cpv-add-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .cpv-input {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    font-size: 0.82rem;
+    font-family: var(--font);
+    width: 140px;
+    outline: none;
+    transition: border-color var(--transition);
+  }
+  .cpv-input:focus { border-color: var(--blue); }
+  .cpv-input::placeholder { color: var(--text-muted); }
+  .btn-cpv-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--blue);
+    border: none;
+    border-radius: var(--radius);
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #fff;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .btn-cpv-add:hover { background: var(--blue-hover); }
+  .btn-cpv-add:active { transform: scale(0.97); }
+  .cpv-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+
+  @media (max-width: 768px) {
+    .header { padding: 16px 16px; }
+    .tabs-bar { padding: 0 16px; }
+    .main { padding: 16px; }
+    .tab-btn { padding: 12px 14px; font-size: 0.82rem; }
+    .cpv-panel { padding: 16px; }
+  }
+
+  @media (max-width: 480px) {
+    .header-left h1 { font-size: 1.05rem; }
+    .tab-btn { padding: 10px 10px; font-size: 0.78rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <h1>Doffin Monitor &mdash; Dynamiske innkjopsordninger</h1>
+    <div class="subtitle" id="subtitle">Laster...</div>
+  </div>
+  <div class="header-buttons">
+    <button class="btn-settings" onclick="toggleCpvPanel()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      CPV-koder
+    </button>
+    <button class="btn-refresh" id="btnRefresh" onclick="refreshData()">
+      <svg class="refresh-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Oppdater
+    </button>
+  </div>
+</header>
+
+<!-- CPV Settings Panel -->
+<div class="cpv-panel" id="cpvPanel">
+  <div class="cpv-panel-inner">
+    <div class="cpv-panel-title">CPV-koder i s&oslash;ket</div>
+    <div class="cpv-list" id="cpvList"></div>
+    <div class="cpv-add-row">
+      <input type="text" class="cpv-input" id="cpvInput" placeholder="F.eks. 72000000" maxlength="8" onkeydown="if(event.key==='Enter')addCpvCode()">
+      <button class="btn-cpv-add" onclick="addCpvCode()">Legg til</button>
+    </div>
+    <div class="cpv-hint">CPV-koder er 8-sifrede koder som klassifiserer type anskaffelse. Endringer krever oppdatering for &aring; tre i kraft.</div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<nav class="tabs-bar">
+  <button class="tab-btn active" data-tab="nye" onclick="switchTab('nye')">
+    Nye <span class="badge" id="badgeNye">0</span>
+  </button>
+  <button class="tab-btn" data-tab="aktuelle" onclick="switchTab('aktuelle')">
+    Aktuelle <span class="badge" id="badgeAktuelle">0</span>
+  </button>
+  <button class="tab-btn" data-tab="paameldt" onclick="switchTab('paameldt')">
+    P&aring;meldt <span class="badge" id="badgePaameldt">0</span>
+  </button>
+  <button class="tab-btn" data-tab="avvist" onclick="switchTab('avvist')">
+    Avvist <span class="badge" id="badgeAvvist">0</span>
+  </button>
+  <div class="tabs-right">
+    <button class="btn-export" id="btnExport" onclick="exportRelevant()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Eksporter JSON
+    </button>
+  </div>
+</nav>
+
+<!-- Main -->
+<main class="main">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th class="col-actions">Handlinger</th>
+          <th class="col-name sortable" data-sort="name" onclick="app.sortBy('name')">Innkj&oslash;psordning <span class="sort-icon">&#x2195;</span></th>
+          <th class="col-buyer sortable" data-sort="buyer" onclick="app.sortBy('buyer')">Kunde <span class="sort-icon">&#x2195;</span></th>
+          <th class="col-place sortable" data-sort="place" onclick="app.sortBy('place')">Sted <span class="sort-icon">&#x2195;</span></th>
+          <th class="col-published sortable sort-active" data-sort="published" onclick="app.sortBy('published')">Utlyst <span class="sort-icon">&#x2193;</span></th>
+          <th class="col-deadline sortable" data-sort="deadline" onclick="app.sortBy('deadline')">Frist <span class="sort-icon">&#x2195;</span></th>
+          <th class="col-comment sortable" data-sort="comment" onclick="app.sortBy('comment')">Kommentar <span class="sort-icon">&#x2195;</span></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="7" class="loading-state"><span class="loading-dots">Henter data</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── Supabase config ────────────────────────
+  const SUPABASE_URL = 'https://gicioyjyyoxlqaiqziwh.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpY2lveWp5eW94bHFhaXF6aXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NDM1MTcsImV4cCI6MjA5MDIxOTUxN30.cP3DuXw-wtTtitNMKKvvKu1aQn-MRYqW2O7GyG5ipjQ';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ── State ───────────────────────────────────
+  let notices = [];
+  let activeTab = 'nye';
+  let expandedId = null;
+  let commentTimers = {};
+  let sortColumn = 'published';
+  let sortDirection = 'desc';
+
+  // ── SVG icon fragments ──────────────────────
+  const icons = {
+    check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    bookmark: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>',
+    x: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+    undo: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
+    external: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
+    empty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
+  };
+
+  // ── Helpers ─────────────────────────────────
+  function formatDate(dateStr) {
+    if (!dateStr) return '\u2014';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '\u2014';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return dd + '.' + mm + '.' + yyyy;
+  }
+
+  function isDeadlineSoon(dateStr) {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    const now = new Date();
+    const diff = d.getTime() - now.getTime();
+    return diff > 0 && diff < 30 * 24 * 60 * 60 * 1000;
+  }
+
+  function formatNOK(amount) {
+    if (amount == null) return null;
+    return Number(amount).toLocaleString('nb-NO', { maximumFractionDigits: 0 }) + ' NOK';
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return String(str).replace(/[&<>"']/g, c => map[c]);
+  }
+
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('visible');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => el.classList.remove('visible'), 2200);
+  }
+
+  // ── Filter notices for tab ──────────────────
+  function getNoticesForTab(tab) {
+    let filtered;
+    if (tab === 'nye') {
+      filtered = notices.filter(n => !n.userStatus);
+    } else if (tab === 'aktuelle') {
+      filtered = notices.filter(n => n.userStatus === 'relevant');
+    } else if (tab === 'paameldt') {
+      filtered = notices.filter(n => n.userStatus === 'enrolled');
+    } else {
+      filtered = notices.filter(n => n.userStatus === 'dismissed');
+    }
+    // Sort by active column
+    filtered.sort((a, b) => {
+      let va, vb;
+      switch (sortColumn) {
+        case 'name':
+          va = (a.heading || '').toLowerCase();
+          vb = (b.heading || '').toLowerCase();
+          break;
+        case 'buyer':
+          va = ((a.buyer || []).map(x => x.name).join(', ') || '').toLowerCase();
+          vb = ((b.buyer || []).map(x => x.name).join(', ') || '').toLowerCase();
+          break;
+        case 'place':
+          va = ((a.placeOfPerformance && a.placeOfPerformance.length) ? a.placeOfPerformance.join(', ') : (a.locationId || []).join(', ')).toLowerCase();
+          vb = ((b.placeOfPerformance && b.placeOfPerformance.length) ? b.placeOfPerformance.join(', ') : (b.locationId || []).join(', ')).toLowerCase();
+          break;
+        case 'published':
+          va = new Date(a.publicationDate || 0).getTime();
+          vb = new Date(b.publicationDate || 0).getTime();
+          break;
+        case 'deadline':
+          va = new Date(a.deadline || 0).getTime();
+          vb = new Date(b.deadline || 0).getTime();
+          break;
+        case 'comment':
+          va = (a.userComment || '').toLowerCase();
+          vb = (b.userComment || '').toLowerCase();
+          break;
+        default:
+          va = new Date(a.publicationDate || 0).getTime();
+          vb = new Date(b.publicationDate || 0).getTime();
+      }
+      if (va < vb) return sortDirection === 'asc' ? -1 : 1;
+      if (va > vb) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return filtered;
+  }
+
+  // ── Update badge counts ─────────────────────
+  function updateBadges() {
+    document.getElementById('badgeNye').textContent = notices.filter(n => !n.userStatus).length;
+    document.getElementById('badgeAktuelle').textContent = notices.filter(n => n.userStatus === 'relevant').length;
+    document.getElementById('badgePaameldt').textContent = notices.filter(n => n.userStatus === 'enrolled').length;
+    document.getElementById('badgeAvvist').textContent = notices.filter(n => n.userStatus === 'dismissed').length;
+  }
+
+  // ── Update subtitle ─────────────────────────
+  function updateSubtitle() {
+    const total = notices.length;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    document.getElementById('subtitle').textContent =
+      total + ' kunngjøringer totalt \u00B7 Sist oppdatert ' + hh + ':' + mm;
+  }
+
+  // ── Render table ────────────────────────────
+  function render() {
+    const data = getNoticesForTab(activeTab);
+    updateBadges();
+
+    const tbody = document.getElementById('tableBody');
+
+    if (data.length === 0) {
+      const emptyMessages = {
+        nye: { title: 'Ingen nye kunngjøringer', text: 'Alle kunngjøringer er sortert.' },
+        aktuelle: { title: 'Ingen aktuelle kunngjøringer', text: 'Marker kunngjøringer som aktuelle for å se dem her.' },
+        paameldt: { title: 'Ingen påmeldinger', text: 'Marker kunngjøringer som påmeldt for å se dem her.' },
+        avvist: { title: 'Ingen avviste kunngjøringer', text: 'Kunngjøringer du avviser havner her.' }
+      };
+      const msg = emptyMessages[activeTab];
+      tbody.innerHTML =
+        '<tr><td colspan="7">' +
+          '<div class="empty-state">' +
+            '<div class="empty-state-icon">' + icons.empty + '</div>' +
+            '<div class="empty-state-title">' + msg.title + '</div>' +
+            '<div class="empty-state-text">' + msg.text + '</div>' +
+          '</div>' +
+        '</td></tr>';
+      return;
+    }
+
+    let html = '';
+    for (const n of data) {
+      const buyer = (n.buyer || []).map(b => b.name).join(', ') || '\u2014';
+      const place = (n.placeOfPerformance && n.placeOfPerformance.length)
+        ? n.placeOfPerformance.join(', ')
+        : ((n.locationId && n.locationId.length) ? n.locationId.join(', ') : '\u2014');
+      const pubDate = formatDate(n.publicationDate);
+      const dlDate = formatDate(n.deadline);
+      const dlSoon = isDeadlineSoon(n.deadline);
+      const comment = escapeHtml(n.userComment || '');
+      const isExpanded = expandedId === n.id;
+
+      // Build action buttons
+      let actionsHtml = '<div class="actions">';
+      if (activeTab === 'nye') {
+        actionsHtml +=
+          '<button class="act-btn act-relevant" data-tooltip="Marker som aktuell" onclick="app.setStatus(\'' + n.id + '\',\'relevant\')"><span>' + icons.check + '</span></button>' +
+          '<button class="act-btn act-enrolled" data-tooltip="Marker som påmeldt" onclick="app.setStatus(\'' + n.id + '\',\'enrolled\')"><span>' + icons.bookmark + '</span></button>' +
+          '<button class="act-btn act-dismiss" data-tooltip="Avvis" onclick="app.setStatus(\'' + n.id + '\',\'dismissed\')"><span>' + icons.x + '</span></button>';
+      } else if (activeTab === 'aktuelle') {
+        actionsHtml +=
+          '<button class="act-btn act-enrolled" data-tooltip="Marker som påmeldt" onclick="app.setStatus(\'' + n.id + '\',\'enrolled\')"><span>' + icons.bookmark + '</span></button>' +
+          '<button class="act-btn act-dismiss" data-tooltip="Avvis" onclick="app.setStatus(\'' + n.id + '\',\'dismissed\')"><span>' + icons.x + '</span></button>' +
+          '<button class="act-btn act-undo" data-tooltip="Tilbakestill" onclick="app.resetStatus(\'' + n.id + '\')"><span>' + icons.undo + '</span></button>';
+      } else if (activeTab === 'paameldt') {
+        actionsHtml +=
+          '<button class="act-btn act-undo" data-tooltip="Tilbakestill" onclick="app.resetStatus(\'' + n.id + '\')"><span>' + icons.undo + '</span></button>';
+      } else {
+        actionsHtml +=
+          '<button class="act-btn act-relevant" data-tooltip="Marker som aktuell" onclick="app.setStatus(\'' + n.id + '\',\'relevant\')"><span>' + icons.check + '</span></button>' +
+          '<button class="act-btn act-undo" data-tooltip="Tilbakestill" onclick="app.resetStatus(\'' + n.id + '\')"><span>' + icons.undo + '</span></button>';
+      }
+      actionsHtml += '</div>';
+
+      // Main row
+      html +=
+        '<tr id="row-' + n.id + '">' +
+          '<td class="col-actions">' + actionsHtml + '</td>' +
+          '<td class="col-name"><div class="notice-name">' +
+            '<span class="notice-name-text" onclick="app.toggleExpand(\'' + n.id + '\')">' + escapeHtml(n.heading || '(Uten tittel)') + '</span>' +
+            '<a class="doffin-link" href="https://doffin.no/notices/' + encodeURIComponent(n.id) + '" target="_blank" rel="noopener" title="Åpne i Doffin">' + icons.external + '</a>' +
+          '</div></td>' +
+          '<td class="col-buyer"><span class="buyer-text" title="' + escapeHtml(buyer) + '">' + escapeHtml(buyer) + '</span></td>' +
+          '<td class="col-place"><span class="place-text">' + escapeHtml(place) + '</span></td>' +
+          '<td class="col-published"><span class="date-text">' + pubDate + '</span></td>' +
+          '<td class="col-deadline"><span class="date-text' + (dlSoon ? ' deadline-soon' : '') + '">' + dlDate + '</span></td>' +
+          '<td class="col-comment"><input type="text" class="comment-input" placeholder="Skriv kommentar..." value="' + comment + '" oninput="app.onCommentInput(\'' + n.id + '\', this.value)" onblur="app.saveComment(\'' + n.id + '\', this.value)"></td>' +
+        '</tr>';
+
+      // Expand row
+      if (isExpanded) {
+        const desc = escapeHtml(n.description || 'Ingen beskrivelse tilgjengelig.');
+        const estVal = (n.estimatedValue && n.estimatedValue.amount != null)
+          ? formatNOK(n.estimatedValue.amount) : null;
+
+        html +=
+          '<tr class="expand-row">' +
+            '<td colspan="7">' +
+              '<div class="expand-content">' +
+                '<div class="expand-description">' + desc + '</div>' +
+                '<div class="expand-meta">' +
+                  '<a class="expand-link" href="https://doffin.no/notices/' + encodeURIComponent(n.id) + '" target="_blank" rel="noopener">' +
+                    'Åpne i Doffin \u2192' +
+                  '</a>' +
+                  (estVal ? '<span class="expand-value">Estimert verdi: ' + estVal + '</span>' : '') +
+                '</div>' +
+              '</div>' +
+            '</td>' +
+          '</tr>';
+      }
+    }
+
+    tbody.innerHTML = html;
+  }
+
+  // ── Tab switching ───────────────────────────
+  window.switchTab = function(tab) {
+    activeTab = tab;
+    expandedId = null;
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+
+    const exportBtn = document.getElementById('btnExport');
+    exportBtn.classList.toggle('visible', tab === 'aktuelle');
+
+    render();
+  };
+
+  // ── Expand/collapse ─────────────────────────
+  function toggleExpand(id) {
+    expandedId = expandedId === id ? null : id;
+    render();
+  }
+
+  // ── Supabase data layer ─────────────────────
+  async function fetchNotices() {
+    // Fetch from Doffin via Edge Function
+    const resp = await fetch(SUPABASE_URL + '/functions/v1/doffin-proxy', {
+      headers: {
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+      }
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+
+    // Fetch user data from Supabase
+    const { data: userData, error } = await sb
+      .from('user_notices')
+      .select('*');
+
+    const userMap = {};
+    if (userData) {
+      for (const row of userData) {
+        userMap[row.notice_id] = row;
+      }
+    }
+
+    return data.hits.map(hit => {
+      const ud = userMap[hit.id] || null;
+      return {
+        ...hit,
+        userStatus: ud ? ud.status : null,
+        userComment: ud ? ud.comment : ''
+      };
+    });
+  }
+
+  async function upsertUserData(id, status, comment) {
+    const { error } = await sb
+      .from('user_notices')
+      .upsert({
+        notice_id: id,
+        status: status,
+        comment: comment || '',
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'notice_id' });
+    if (error) throw error;
+  }
+
+  async function deleteUserData(id) {
+    const { error } = await sb
+      .from('user_notices')
+      .delete()
+      .eq('notice_id', id);
+    if (error) throw error;
+  }
+
+  // ── Set status (optimistic) ─────────────────
+  async function setStatus(id, status) {
+    const notice = notices.find(n => n.id === id);
+    if (!notice) return;
+
+    const previousStatus = notice.userStatus;
+
+    // Animate out
+    const row = document.getElementById('row-' + CSS.escape(id));
+    if (row) {
+      row.classList.add('row-exit');
+      const expandRow = row.nextElementSibling;
+      if (expandRow && expandRow.classList.contains('expand-row')) {
+        expandRow.classList.add('row-exit');
+      }
+    }
+
+    // Optimistic update after animation
+    setTimeout(async () => {
+      notice.userStatus = status;
+      if (expandedId === id) expandedId = null;
+      render();
+
+      const labels = { dismissed: 'Avvist', relevant: 'Markert som aktuell', enrolled: 'Markert som påmeldt' };
+      showToast(labels[status] || 'Oppdatert');
+
+      try {
+        await upsertUserData(id, status, notice.userComment || '');
+      } catch (err) {
+        console.error('Feil ved lagring:', err);
+        notice.userStatus = previousStatus;
+        render();
+        showToast('Feil ved lagring');
+      }
+    }, 280);
+  }
+
+  // ── Reset status ────────────────────────────
+  async function resetStatus(id) {
+    const notice = notices.find(n => n.id === id);
+    if (!notice) return;
+
+    const previousStatus = notice.userStatus;
+
+    const row = document.getElementById('row-' + CSS.escape(id));
+    if (row) {
+      row.classList.add('row-exit');
+      const expandRow = row.nextElementSibling;
+      if (expandRow && expandRow.classList.contains('expand-row')) {
+        expandRow.classList.add('row-exit');
+      }
+    }
+
+    setTimeout(async () => {
+      notice.userStatus = null;
+      if (expandedId === id) expandedId = null;
+      render();
+      showToast('Tilbakestilt');
+
+      try {
+        await deleteUserData(id);
+      } catch (err) {
+        console.error('Feil ved tilbakestilling:', err);
+        notice.userStatus = previousStatus;
+        render();
+        showToast('Feil ved tilbakestilling');
+      }
+    }, 280);
+  }
+
+  // ── Comment handling (debounced) ────────────
+  function onCommentInput(id, value) {
+    const notice = notices.find(n => n.id === id);
+    if (notice) notice.userComment = value;
+
+    clearTimeout(commentTimers[id]);
+    commentTimers[id] = setTimeout(() => {
+      saveComment(id, value);
+    }, 500);
+  }
+
+  async function saveComment(id, value) {
+    clearTimeout(commentTimers[id]);
+
+    const notice = notices.find(n => n.id === id);
+    if (!notice) return;
+
+    try {
+      if (notice.userStatus) {
+        await upsertUserData(id, notice.userStatus, value || '');
+      } else {
+        // No status yet — need to save with a temporary marker
+        // Only save if there's actually a comment
+        if (value && value.trim()) {
+          await upsertUserData(id, 'relevant', value);
+          notice.userStatus = 'relevant';
+          render();
+          showToast('Kommentar lagret (markert som aktuell)');
+        }
+      }
+    } catch (err) {
+      console.error('Feil ved lagring av kommentar:', err);
+      showToast('Feil ved lagring av kommentar');
+    }
+  }
+
+  // ── Export ──────────────────────────────────
+  window.exportRelevant = function() {
+    const relevant = notices.filter(n => n.userStatus === 'relevant');
+    const exported = relevant.map(n => ({
+      name: n.heading || n.id,
+      customer: (n.buyer && n.buyer.length > 0) ? n.buyer[0].name : 'Ukjent',
+      link: 'https://doffin.no/notices/' + n.id
+    }));
+
+    const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    a.href = url;
+    a.download = 'doffin-aktuelle-' + yyyy + '-' + mm + '-' + dd + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Eksport lastet ned');
+  };
+
+  // ── Refresh data ────────────────────────────
+  window.refreshData = async function() {
+    const btn = document.getElementById('btnRefresh');
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    try {
+      notices = await fetchNotices();
+      updateSubtitle();
+      render();
+      showToast('Data oppdatert');
+    } catch (err) {
+      console.error('Feil ved oppdatering:', err);
+      showToast('Feil ved henting av data');
+    } finally {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  };
+
+  // ── Initial load ────────────────────────────
+  async function init() {
+    try {
+      notices = await fetchNotices();
+      updateSubtitle();
+      render();
+    } catch (err) {
+      console.error('Initialiseringsfeil:', err);
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML =
+        '<tr><td colspan="7" class="error-state">' +
+          'Kunne ikke hente data. Prøv å oppdatere siden.' +
+        '</td></tr>';
+      document.getElementById('subtitle').textContent = 'Feil ved lasting av data';
+    }
+  }
+
+  // ── Sort by column ─────────────────────────
+  function sortBy(column) {
+    if (sortColumn === column) {
+      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortColumn = column;
+      sortDirection = (column === 'published' || column === 'deadline') ? 'desc' : 'asc';
+    }
+    updateSortHeaders();
+    render();
+  }
+
+  function updateSortHeaders() {
+    document.querySelectorAll('thead th.sortable').forEach(th => {
+      const col = th.dataset.sort;
+      const icon = th.querySelector('.sort-icon');
+      if (col === sortColumn) {
+        th.classList.add('sort-active');
+        icon.innerHTML = sortDirection === 'asc' ? '&#x2191;' : '&#x2193;';
+      } else {
+        th.classList.remove('sort-active');
+        icon.innerHTML = '&#x2195;';
+      }
+    });
+  }
+
+  window.app = {
+    toggleExpand: toggleExpand,
+    setStatus: setStatus,
+    resetStatus: resetStatus,
+    onCommentInput: onCommentInput,
+    saveComment: saveComment,
+    sortBy: sortBy
+  };
+
+  // ── CPV code management ───────────────────
+  window.toggleCpvPanel = function() {
+    const panel = document.getElementById('cpvPanel');
+    panel.classList.toggle('visible');
+    if (panel.classList.contains('visible')) {
+      loadCpvCodes();
+    }
+  };
+
+  async function loadCpvCodes() {
+    const { data, error } = await sb
+      .from('cpv_codes')
+      .select('code')
+      .order('code');
+    if (error) {
+      showToast('Kunne ikke hente CPV-koder');
+      return;
+    }
+    renderCpvCodes((data || []).map(r => r.code));
+  }
+
+  function renderCpvCodes(codes) {
+    const list = document.getElementById('cpvList');
+    if (codes.length === 0) {
+      list.innerHTML = '<span style="font-size:0.82rem;color:var(--text-muted)">Ingen CPV-koder konfigurert</span>';
+      return;
+    }
+    list.innerHTML = codes.map(code =>
+      '<span class="cpv-tag">' + escapeHtml(code) +
+      '<button onclick="removeCpvCode(\'' + escapeHtml(code) + '\')" title="Fjern">&times;</button></span>'
+    ).join('');
+  }
+
+  window.addCpvCode = async function() {
+    const input = document.getElementById('cpvInput');
+    const code = input.value.trim();
+    if (!/^\d{8}$/.test(code)) {
+      showToast('CPV-kode må være 8 siffer');
+      return;
+    }
+    const { error } = await sb
+      .from('cpv_codes')
+      .upsert({ code: code }, { onConflict: 'code' });
+    if (error) {
+      showToast('Kunne ikke legge til CPV-kode');
+      return;
+    }
+    input.value = '';
+    showToast('CPV-kode ' + code + ' lagt til');
+    loadCpvCodes();
+  };
+
+  window.removeCpvCode = async function(code) {
+    const { error } = await sb
+      .from('cpv_codes')
+      .delete()
+      .eq('code', code);
+    if (error) {
+      showToast('Kunne ikke fjerne CPV-kode');
+      return;
+    }
+    showToast('CPV-kode ' + code + ' fjernet');
+    loadCpvCodes();
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>
