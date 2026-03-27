@@ -279,10 +279,12 @@
 
   .buyer-text {
     color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     max-width: 220px;
+    word-break: break-word;
   }
 
   .place-text {
