@@ -248,6 +248,7 @@
   .col-name { min-width: 240px; }
   .col-buyer { min-width: 160px; max-width: 220px; }
   .col-place { min-width: 80px; }
+  .col-id { min-width: 80px; white-space: nowrap; }
   .col-published { width: 96px; white-space: nowrap; }
   .col-deadline { width: 96px; white-space: nowrap; }
   .col-comment { min-width: 140px; }
@@ -289,6 +290,11 @@
 
   .place-text {
     color: var(--text-secondary);
+  }
+
+  .id-text {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
   }
 
   .date-text { color: var(--text-secondary); }
@@ -728,13 +734,14 @@
           <th class="col-name sortable" data-sort="name" onclick="app.sortBy('name')">Innkj&oslash;psordning <span class="sort-icon">&#x2195;</span></th>
           <th class="col-buyer sortable" data-sort="buyer" onclick="app.sortBy('buyer')">Kunde <span class="sort-icon">&#x2195;</span></th>
           <th class="col-place sortable" data-sort="place" onclick="app.sortBy('place')">Sted <span class="sort-icon">&#x2195;</span></th>
+          <th class="col-id sortable" data-sort="internalId" onclick="app.sortBy('internalId')">Intern ID <span class="sort-icon">&#x2195;</span></th>
           <th class="col-published sortable sort-active" data-sort="published" onclick="app.sortBy('published')">Utlyst <span class="sort-icon">&#x2193;</span></th>
           <th class="col-deadline sortable" data-sort="deadline" onclick="app.sortBy('deadline')">Frist <span class="sort-icon">&#x2195;</span></th>
           <th class="col-comment sortable" data-sort="comment" onclick="app.sortBy('comment')">Kommentar <span class="sort-icon">&#x2195;</span></th>
         </tr>
       </thead>
       <tbody id="tableBody">
-        <tr><td colspan="7" class="loading-state"><span class="loading-dots">Henter data</span></td></tr>
+        <tr><td colspan="8" class="loading-state"><span class="loading-dots">Henter data</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -837,6 +844,10 @@
           va = ((a.placeOfPerformance && a.placeOfPerformance.length) ? a.placeOfPerformance.join(', ') : (a.locationId || []).join(', ')).toLowerCase();
           vb = ((b.placeOfPerformance && b.placeOfPerformance.length) ? b.placeOfPerformance.join(', ') : (b.locationId || []).join(', ')).toLowerCase();
           break;
+        case 'internalId':
+          va = (a.internalId || '').toLowerCase();
+          vb = (b.internalId || '').toLowerCase();
+          break;
         case 'published':
           va = new Date(a.publicationDate || 0).getTime();
           vb = new Date(b.publicationDate || 0).getTime();
@@ -894,7 +905,7 @@
       };
       const msg = emptyMessages[activeTab];
       tbody.innerHTML =
-        '<tr><td colspan="7">' +
+        '<tr><td colspan="8">' +
           '<div class="empty-state">' +
             '<div class="empty-state-icon">' + icons.empty + '</div>' +
             '<div class="empty-state-title">' + msg.title + '</div>' +
@@ -948,6 +959,7 @@
           '</div></td>' +
           '<td class="col-buyer"><span class="buyer-text" title="' + escapeHtml(buyer) + '">' + escapeHtml(buyer) + '</span></td>' +
           '<td class="col-place"><span class="place-text">' + escapeHtml(place) + '</span></td>' +
+          '<td class="col-id"><span class="id-text">' + escapeHtml(n.internalId || '\u2014') + '</span></td>' +
           '<td class="col-published"><span class="date-text">' + pubDate + '</span></td>' +
           '<td class="col-deadline"><span class="date-text' + (dlSoon ? ' deadline-soon' : '') + '">' + dlDate + '</span></td>' +
           '<td class="col-comment"><input type="text" class="comment-input" placeholder="Skriv kommentar..." value="' + comment + '" oninput="app.onCommentInput(\'' + n.id + '\', this.value)" onblur="app.saveComment(\'' + n.id + '\', this.value)"></td>' +
@@ -961,7 +973,7 @@
 
         html +=
           '<tr class="expand-row">' +
-            '<td colspan="7">' +
+            '<td colspan="8">' +
               '<div class="expand-content">' +
                 '<div class="expand-description">' + desc + '</div>' +
                 '<div class="expand-meta">' +
@@ -1214,7 +1226,7 @@
       console.error('Initialiseringsfeil:', err);
       const tbody = document.getElementById('tableBody');
       tbody.innerHTML =
-        '<tr><td colspan="7" class="error-state">' +
+        '<tr><td colspan="8" class="error-state">' +
           'Kunne ikke hente data. Prøv å oppdatere siden.' +
         '</td></tr>';
       document.getElementById('subtitle').textContent = 'Feil ved lasting av data';

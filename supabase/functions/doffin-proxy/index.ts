@@ -2,6 +2,7 @@ import "@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const DOFFIN_API_URL = "https://api.doffin.no/webclient/api/v2/search-api/search"
+const DOFFIN_NOTICE_URL = "https://api.doffin.no/webclient/api/v2/notices-api/notices"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +28,29 @@ function buildRequestBody(page: number, cpvCodes: string[]) {
       winner: { checkedItems: [] },
     },
   }
+}
+
+interface EformSection {
+  title: string
+  label: string | null
+  value: string | null
+  sections: EformSection[] | null
+}
+
+function findInternalId(eform: EformSection[]): string | null {
+  for (const block of eform) {
+    if (block.label === "Intern identifikator" && block.value) {
+      return block.value
+    }
+    if (block.label === "Internal identifier" && block.value) {
+      return block.value
+    }
+    if (block.sections) {
+      const found = findInternalId(block.sections)
+      if (found) return found
+    }
+  }
+  return null
 }
 
 Deno.serve(async (req) => {
@@ -88,6 +112,27 @@ Deno.serve(async (req) => {
       const pageResults = await Promise.all(pagePromises)
       for (const pageData of pageResults) {
         allHits.push(...pageData.hits)
+      }
+    }
+
+    // Fetch internal identifiers for all hits in parallel (batched)
+    const BATCH_SIZE = 20
+    for (let i = 0; i < allHits.length; i += BATCH_SIZE) {
+      const batch = allHits.slice(i, i + BATCH_SIZE)
+      const detailPromises = batch.map((hit: { id: string }) =>
+        fetch(`${DOFFIN_NOTICE_URL}/${hit.id}`)
+          .then(res => res.ok ? res.json() : null)
+          .catch(() => null)
+      )
+      const details = await Promise.all(detailPromises)
+      for (let j = 0; j < batch.length; j++) {
+        const detail = details[j]
+        if (detail?.eform) {
+          const internalId = findInternalId(detail.eform)
+          if (internalId) {
+            allHits[i + j].internalId = internalId
+          }
+        }
       }
     }
 
