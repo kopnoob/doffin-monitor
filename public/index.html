@@ -252,7 +252,7 @@
   .col-published { width: 96px; white-space: nowrap; }
   .col-deadline { width: 96px; white-space: nowrap; }
   .col-comment { min-width: 140px; }
-  .col-actions { width: 120px; white-space: nowrap; text-align: right; }
+  .col-actions { min-width: 120px; white-space: nowrap; text-align: right; }
 
   /* Name cell */
   .notice-name {
@@ -302,6 +302,32 @@
     color: var(--red);
     font-weight: 600;
   }
+
+  /* Sub-status select */
+  .sub-status-select {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 6px;
+    font-size: 0.75rem;
+    font-family: var(--font);
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--surface);
+    cursor: pointer;
+    outline: none;
+    transition: all var(--transition);
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238a94a6' stroke-width='2.5' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    padding-right: 20px;
+  }
+  .sub-status-select:focus { border-color: var(--blue); }
+  .sub-status-select.ss-vurdering { color: var(--text-muted); }
+  .sub-status-select.ss-under-arbeid { color: var(--blue); border-color: #c4d9f2; background-color: var(--blue-light); }
+  .sub-status-select.ss-tilbud-sendt { color: var(--green); border-color: #c6e6d6; background-color: var(--green-light); }
+  .sub-status-select.ss-blokkert { color: var(--red); border-color: #ecc; background-color: var(--red-light); }
 
   /* Comment field */
   .comment-input {
@@ -1091,7 +1117,15 @@
           '<button class="act-btn act-enrolled" data-tooltip="Marker som påmeldt" onclick="app.setStatus(\'' + n.id + '\',\'enrolled\')"><span>' + icons.bookmark + '</span></button>' +
           '<button class="act-btn act-dismiss" data-tooltip="Avvis" onclick="app.setStatus(\'' + n.id + '\',\'dismissed\')"><span>' + icons.x + '</span></button>';
       } else if (activeTab === 'aktuelle') {
+        const ss = n.userSubStatus || 'vurdering';
+        const ssCls = 'ss-' + ss.replace(/ /g, '-');
         actionsHtml +=
+          '<select class="sub-status-select ' + ssCls + '" onchange="app.setSubStatus(\'' + n.id + '\', this.value)">' +
+            '<option value="vurdering"' + (ss === 'vurdering' ? ' selected' : '') + '>Vurdering</option>' +
+            '<option value="under-arbeid"' + (ss === 'under-arbeid' ? ' selected' : '') + '>Under arbeid</option>' +
+            '<option value="tilbud-sendt"' + (ss === 'tilbud-sendt' ? ' selected' : '') + '>Tilbud sendt</option>' +
+            '<option value="blokkert"' + (ss === 'blokkert' ? ' selected' : '') + '>Blokkert</option>' +
+          '</select>' +
           '<button class="act-btn act-enrolled" data-tooltip="Marker som påmeldt" onclick="app.setStatus(\'' + n.id + '\',\'enrolled\')"><span>' + icons.bookmark + '</span></button>' +
           '<button class="act-btn act-dismiss" data-tooltip="Avvis" onclick="app.setStatus(\'' + n.id + '\',\'dismissed\')"><span>' + icons.x + '</span></button>' +
           '<button class="act-btn act-undo" data-tooltip="Tilbakestill" onclick="app.resetStatus(\'' + n.id + '\')"><span>' + icons.undo + '</span></button>';
@@ -1198,20 +1232,23 @@
       return {
         ...hit,
         userStatus: ud ? ud.status : null,
-        userComment: ud ? ud.comment : ''
+        userComment: ud ? ud.comment : '',
+        userSubStatus: ud ? (ud.sub_status || 'vurdering') : 'vurdering'
       };
     });
   }
 
-  async function upsertUserData(id, status, comment) {
+  async function upsertUserData(id, status, comment, subStatus) {
+    const row = {
+      notice_id: id,
+      status: status,
+      comment: comment || '',
+      updated_at: new Date().toISOString()
+    };
+    if (subStatus !== undefined) row.sub_status = subStatus;
     const { error } = await sb
       .from('user_notices')
-      .upsert({
-        notice_id: id,
-        status: status,
-        comment: comment || '',
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'notice_id' });
+      .upsert(row, { onConflict: 'notice_id' });
     if (error) throw error;
   }
 
@@ -1243,6 +1280,7 @@
     // Optimistic update after animation
     setTimeout(async () => {
       notice.userStatus = status;
+      if (status === 'relevant') notice.userSubStatus = 'vurdering';
       if (expandedId === id) expandedId = null;
       render();
 
@@ -1250,7 +1288,8 @@
       showToast(labels[status] || 'Oppdatert');
 
       try {
-        await upsertUserData(id, status, notice.userComment || '');
+        const subSt = status === 'relevant' ? 'vurdering' : undefined;
+        await upsertUserData(id, status, notice.userComment || '', subSt);
       } catch (err) {
         console.error('Feil ved lagring:', err);
         notice.userStatus = previousStatus;
@@ -1417,13 +1456,36 @@
     });
   }
 
+  // ── Sub-status for aktuelle ─────────────────
+  async function setSubStatus(id, subStatus) {
+    const notice = notices.find(n => n.id === id);
+    if (!notice) return;
+
+    const prev = notice.userSubStatus;
+    notice.userSubStatus = subStatus;
+    render();
+
+    const labels = { 'vurdering': 'Vurdering', 'under-arbeid': 'Under arbeid', 'tilbud-sendt': 'Tilbud sendt', 'blokkert': 'Blokkert' };
+    showToast(labels[subStatus] || 'Oppdatert');
+
+    try {
+      await upsertUserData(id, notice.userStatus, notice.userComment || '', subStatus);
+    } catch (err) {
+      console.error('Feil ved lagring av substatus:', err);
+      notice.userSubStatus = prev;
+      render();
+      showToast('Feil ved lagring');
+    }
+  }
+
   window.app = {
     toggleExpand: toggleExpand,
     setStatus: setStatus,
     resetStatus: resetStatus,
     onCommentInput: onCommentInput,
     saveComment: saveComment,
-    sortBy: sortBy
+    sortBy: sortBy,
+    setSubStatus: setSubStatus
   };
 
   // ── CPV code management ───────────────────
