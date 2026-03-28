@@ -317,6 +317,8 @@
     transition: all var(--transition);
     resize: none;
     overflow: hidden;
+    field-sizing: content;
+    word-break: break-word;
   }
   .comment-input::placeholder { color: var(--text-muted); }
   .comment-input:hover { border-color: var(--border); background: var(--surface); }
@@ -1115,7 +1117,7 @@
           '<td class="col-id"><span class="id-text">' + escapeHtml(n.internalId || '\u2014') + '</span></td>' +
           '<td class="col-published"><span class="date-text">' + pubDate + '</span></td>' +
           '<td class="col-deadline"><span class="date-text' + (dlSoon ? ' deadline-soon' : '') + '">' + dlDate + '</span></td>' +
-          '<td class="col-comment"><input type="text" class="comment-input" placeholder="Skriv kommentar..." value="' + comment + '" oninput="app.onCommentInput(\'' + n.id + '\', this.value)" onblur="app.saveComment(\'' + n.id + '\', this.value)"></td>' +
+          '<td class="col-comment"><textarea class="comment-input" placeholder="Skriv kommentar..." rows="1" oninput="app.onCommentInput(\'' + n.id + '\', this.value)" onblur="app.saveComment(\'' + n.id + '\', this.value)">' + comment + '</textarea></td>' +
         '</tr>';
 
       // Expand row
