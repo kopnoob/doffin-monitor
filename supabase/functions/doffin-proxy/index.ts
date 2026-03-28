@@ -127,10 +127,15 @@ Deno.serve(async (req) => {
       const details = await Promise.all(detailPromises)
       for (let j = 0; j < batch.length; j++) {
         const detail = details[j]
-        if (detail?.eform) {
-          const internalId = findInternalId(detail.eform)
-          if (internalId) {
-            allHits[i + j].internalId = internalId
+        if (detail) {
+          if (detail.eform) {
+            const internalId = findInternalId(detail.eform)
+            if (internalId) {
+              allHits[i + j].internalId = internalId
+            }
+          }
+          if (detail.competitionDocsUrl) {
+            allHits[i + j].competitionDocsUrl = detail.competitionDocsUrl
           }
         }
       }
