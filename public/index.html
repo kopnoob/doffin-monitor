@@ -811,17 +811,169 @@
     flex-shrink: 0;
   }
 
+  /* ── Page Navigation ─────────────────────── */
+  .page-nav {
+    background: var(--text);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .page-btn {
+    position: relative;
+    background: none;
+    border: none;
+    padding: 11px 22px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: rgba(255,255,255,0.55);
+    cursor: pointer;
+    transition: color var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .page-btn::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 8px;
+    right: 8px;
+    height: 2px;
+    background: transparent;
+    border-radius: 2px 2px 0 0;
+    transition: background var(--transition);
+  }
+  .page-btn:hover { color: rgba(255,255,255,0.85); }
+  .page-btn.active { color: #fff; }
+  .page-btn.active::after { background: #fff; }
+
+  .page-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.55);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+  .page-btn.active .page-badge {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+  }
+
+  /* ── AI Analysis ────────────────────────── */
+  .ai-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border: none;
+    border-radius: var(--radius);
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #fff;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+  }
+  .ai-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .ai-btn:active { transform: scale(0.97); }
+  .ai-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; filter: none; }
+  .ai-btn .ai-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  .ai-result {
+    margin-top: 14px;
+    padding: 14px;
+    background: #f5f3ff;
+    border: 1px solid #e0d9f6;
+    border-radius: var(--radius);
+  }
+
+  .ai-verdict {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+  .ai-verdict.verdict-build {
+    background: var(--green-light);
+    color: var(--green);
+  }
+  .ai-verdict.verdict-saas {
+    background: var(--red-light);
+    color: var(--red);
+  }
+  .ai-verdict.verdict-ambiguous {
+    background: #fff7ed;
+    color: var(--orange);
+  }
+
+  .ai-summary {
+    font-size: 0.84rem;
+    color: var(--text);
+    margin-bottom: 8px;
+    line-height: 1.5;
+  }
+
+  .ai-detail {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+  .ai-detail strong {
+    color: var(--text);
+  }
+
+  .ai-competitors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .ai-competitor-tag {
+    display: inline-flex;
+    padding: 2px 8px;
+    background: var(--red-light);
+    color: var(--red);
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 500;
+  }
+
   @media (max-width: 768px) {
     .header { padding: 16px 16px; }
+    .page-nav { padding: 0 16px; }
     .tabs-bar { padding: 0 16px; }
     .main { padding: 16px; }
     .tab-btn { padding: 12px 14px; font-size: 0.82rem; }
     .cpv-panel { padding: 16px; }
+    .page-btn { padding: 10px 14px; font-size: 0.8rem; }
   }
 
   @media (max-width: 480px) {
     .header-left h1 { font-size: 1.05rem; }
     .tab-btn { padding: 10px 10px; font-size: 0.78rem; }
+    .page-btn { padding: 8px 10px; font-size: 0.75rem; }
   }
 </style>
 </head>
@@ -830,7 +982,7 @@
 <!-- Header -->
 <header class="header">
   <div class="header-left">
-    <h1>Doffin Monitor &mdash; Dynamiske innkjopsordninger</h1>
+    <h1 id="pageTitle">Doffin Monitor &mdash; Dynamiske innkj&oslash;psordninger</h1>
     <div class="subtitle" id="subtitle">Laster...</div>
   </div>
   <div class="header-buttons">
@@ -844,6 +996,19 @@
     </button>
   </div>
 </header>
+
+<!-- Page Navigation -->
+<nav class="page-nav">
+  <button class="page-btn active" data-page="dps" onclick="switchPage('dps')">
+    DPS <span class="page-badge" id="pageBadgeDps">0</span>
+  </button>
+  <button class="page-btn" data-page="rammeavtaler" onclick="switchPage('rammeavtaler')">
+    Rammeavtaler <span class="page-badge" id="pageBadgeRammeavtaler">0</span>
+  </button>
+  <button class="page-btn" data-page="systemer" onclick="switchPage('systemer')">
+    Systemer <span class="page-badge" id="pageBadgeSystemer">0</span>
+  </button>
+</nav>
 
 <!-- CPV Settings Panel -->
 <div class="cpv-panel" id="cpvPanel">
@@ -932,7 +1097,12 @@
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // ── State ───────────────────────────────────
-  let notices = [];
+  let currentPage = 'dps';
+  let dpsNotices = [];
+  let rammeavtalerNotices = [];
+  let systemerNotices = [];
+  let notices = []; // reference to current page's notices
+  let aiAnalyses = {}; // cache: notice_id -> analysis
   let activeTab = 'nye';
   let expandedId = null;
   let commentTimers = {};
@@ -940,6 +1110,12 @@
   let sortDirection = 'desc';
   let selectedBuyers = null; // null = all selected (no filter active)
   let filterSearchText = '';
+
+  const pageTitles = {
+    dps: 'Doffin Monitor \u2014 Dynamiske innkj\u00F8psordninger',
+    rammeavtaler: 'Doffin Monitor \u2014 Rammeavtaler konsulentinnleie',
+    systemer: 'Doffin Monitor \u2014 Systemer vi kan utvikle'
+  };
 
   // ── SVG icon fragments ──────────────────────
   const icons = {
@@ -1068,7 +1244,14 @@
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
     document.getElementById('subtitle').textContent =
-      total + ' kunngjøringer totalt \u00B7 Sist oppdatert ' + hh + ':' + mm;
+      total + ' kunngjøringer \u00B7 Sist oppdatert ' + hh + ':' + mm;
+  }
+
+  // ── Update page badges ─────────────────────
+  function updatePageBadges() {
+    document.getElementById('pageBadgeDps').textContent = dpsNotices.length;
+    document.getElementById('pageBadgeRammeavtaler').textContent = rammeavtalerNotices.length;
+    document.getElementById('pageBadgeSystemer').textContent = systemerNotices.length;
   }
 
   // ── Render table ────────────────────────────
@@ -1162,6 +1345,16 @@
         const estVal = (n.estimatedValue && n.estimatedValue.amount != null)
           ? formatNOK(n.estimatedValue.amount) : null;
 
+        let aiHtml = '';
+        if (currentPage === 'systemer') {
+          const cached = aiAnalyses[n.id];
+          if (cached) {
+            aiHtml = renderAiResult(cached);
+          } else {
+            aiHtml = '<div style="margin-top:14px"><button class="ai-btn" id="ai-btn-' + CSS.escape(n.id) + '" onclick="app.analyzeNotice(\'' + n.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4c0 2 2 3 2 6H14c0-3 2-4 2-6a4 4 0 0 0-4-4z"/><line x1="10" y1="16" x2="14" y2="16"/><line x1="10" y1="19" x2="14" y2="19"/><line x1="11" y1="22" x2="13" y2="22"/></svg> Analyser med AI</button></div>';
+          }
+        }
+
         html +=
           '<tr class="expand-row">' +
             '<td colspan="8">' +
@@ -1169,11 +1362,12 @@
                 '<div class="expand-description">' + desc + '</div>' +
                 '<div class="expand-meta">' +
                   '<a class="expand-link" href="https://doffin.no/notices/' + encodeURIComponent(n.id) + '" target="_blank" rel="noopener">' +
-                    'Åpne i Doffin \u2192' +
+                    '\u00C5pne i Doffin \u2192' +
                   '</a>' +
-                  (n.competitionDocsUrl ? '<a class="expand-link" href="' + escapeHtml(n.competitionDocsUrl) + '" target="_blank" rel="noopener">Åpne tilbudsportal \u2192</a>' : '') +
+                  (n.competitionDocsUrl ? '<a class="expand-link" href="' + escapeHtml(n.competitionDocsUrl) + '" target="_blank" rel="noopener">\u00C5pne tilbudsportal \u2192</a>' : '') +
                   (estVal ? '<span class="expand-value">Estimert verdi: ' + estVal + '</span>' : '') +
                 '</div>' +
+                aiHtml +
               '</div>' +
             '</td>' +
           '</tr>';
@@ -1205,29 +1399,34 @@
   }
 
   // ── Supabase data layer ─────────────────────
-  async function fetchNotices() {
-    // Fetch from Doffin via Edge Function
-    const resp = await fetch(SUPABASE_URL + '/functions/v1/doffin-proxy', {
-      headers: {
-        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
-      }
-    });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
+  function getNoticesRef() {
+    if (currentPage === 'dps') return dpsNotices;
+    if (currentPage === 'rammeavtaler') return rammeavtalerNotices;
+    return systemerNotices;
+  }
 
-    // Fetch user data from Supabase
-    const { data: userData, error } = await sb
+  function setNoticesRef(arr) {
+    if (currentPage === 'dps') dpsNotices = arr;
+    else if (currentPage === 'rammeavtaler') rammeavtalerNotices = arr;
+    else systemerNotices = arr;
+    notices = arr;
+  }
+
+  async function fetchUserMap() {
+    const { data: userData } = await sb
       .from('user_notices')
       .select('*');
-
     const userMap = {};
     if (userData) {
       for (const row of userData) {
         userMap[row.notice_id] = row;
       }
     }
+    return userMap;
+  }
 
-    return data.hits.map(hit => {
+  function mergeUserData(hits, userMap) {
+    return hits.map(hit => {
       const ud = userMap[hit.id] || null;
       return {
         ...hit,
@@ -1236,6 +1435,43 @@
         userSubStatus: ud ? (ud.sub_status || 'vurdering') : 'vurdering'
       };
     });
+  }
+
+  async function fetchAllData() {
+    // Fetch DPS and open competitions in parallel, plus user data
+    const [dpsResp, openResp, userMap] = await Promise.all([
+      fetch(SUPABASE_URL + '/functions/v1/doffin-proxy', {
+        headers: { 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+      }),
+      fetch(SUPABASE_URL + '/functions/v1/doffin-proxy-open', {
+        headers: { 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+      }),
+      fetchUserMap()
+    ]);
+
+    if (!dpsResp.ok) throw new Error('DPS HTTP ' + dpsResp.status);
+    if (!openResp.ok) throw new Error('Open HTTP ' + openResp.status);
+
+    const dpsData = await dpsResp.json();
+    const openData = await openResp.json();
+
+    // Split open notices by category
+    const rammeavtalerHits = (openData.hits || []).filter(h => h.category === 'rammeavtale');
+    const systemerHits = (openData.hits || []).filter(h => h.category === 'system');
+
+    // Merge with user data
+    dpsNotices = mergeUserData(dpsData.hits || [], userMap);
+    rammeavtalerNotices = mergeUserData(rammeavtalerHits, userMap);
+    systemerNotices = mergeUserData(systemerHits, userMap);
+
+    // Point notices to current page
+    notices = getNoticesRef();
+  }
+
+  // Legacy function for compatibility
+  async function fetchNotices() {
+    await fetchAllData();
+    return notices;
   }
 
   async function upsertUserData(id, status, comment, subStatus) {
@@ -1400,8 +1636,9 @@
     btn.disabled = true;
 
     try {
-      notices = await fetchNotices();
+      await fetchAllData();
       updateSubtitle();
+      updatePageBadges();
       render();
       showToast('Data oppdatert');
     } catch (err) {
@@ -1415,20 +1652,41 @@
 
   // ── Initial load ────────────────────────────
   async function init() {
+    // Detect page from hash
+    const hash = window.location.hash.replace('#', '');
+    if (['dps', 'rammeavtaler', 'systemer'].indexOf(hash) !== -1) {
+      currentPage = hash;
+    }
+
+    // Set initial page nav state
+    document.querySelectorAll('.page-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.page === currentPage);
+    });
+    document.getElementById('pageTitle').textContent = pageTitles[currentPage] || 'Doffin Monitor';
+
     try {
-      notices = await fetchNotices();
+      await fetchAllData();
       updateSubtitle();
+      updatePageBadges();
       render();
     } catch (err) {
       console.error('Initialiseringsfeil:', err);
       const tbody = document.getElementById('tableBody');
       tbody.innerHTML =
         '<tr><td colspan="8" class="error-state">' +
-          'Kunne ikke hente data. Prøv å oppdatere siden.' +
+          'Kunne ikke hente data. Pr\u00F8v \u00E5 oppdatere siden.' +
         '</td></tr>';
       document.getElementById('subtitle').textContent = 'Feil ved lasting av data';
     }
   }
+
+  // ── Hash change listener ───────────────────
+  window.addEventListener('hashchange', function() {
+    const hash = window.location.hash.replace('#', '');
+    if (['dps', 'rammeavtaler', 'systemer'].indexOf(hash) !== -1 && hash !== currentPage) {
+      switchPage(hash);
+    }
+  });
 
   // ── Sort by column ─────────────────────────
   function sortBy(column) {
@@ -1478,6 +1736,113 @@
     }
   }
 
+  // ── AI analysis ─────────────────────────────
+  function renderAiResult(analysis) {
+    const a = analysis.analysis || analysis;
+    const verdictLabels = {
+      build_from_scratch: 'Kan bygges fra scratch',
+      existing_saas: 'Ser ut som SaaS-tilpasning',
+      ambiguous: 'Uklart'
+    };
+    const verdictClasses = {
+      build_from_scratch: 'verdict-build',
+      existing_saas: 'verdict-saas',
+      ambiguous: 'verdict-ambiguous'
+    };
+    const verdictIcons = {
+      build_from_scratch: '\u2705',
+      existing_saas: '\u26A0\uFE0F',
+      ambiguous: '\u2753'
+    };
+
+    let competitorsHtml = '';
+    if (a.saas_competitors && a.saas_competitors.length > 0) {
+      competitorsHtml = '<div class="ai-competitors">' +
+        a.saas_competitors.map(function(c) { return '<span class="ai-competitor-tag">' + escapeHtml(c) + '</span>'; }).join('') +
+        '</div>';
+    }
+
+    return '<div class="ai-result">' +
+      '<div class="ai-verdict ' + (verdictClasses[a.verdict] || 'verdict-ambiguous') + '">' +
+        (verdictIcons[a.verdict] || '') + ' ' + (verdictLabels[a.verdict] || a.verdict) +
+        ' <span style="font-weight:400;font-size:0.75rem;opacity:0.7">(' + (a.confidence || 'ukjent') + ' konfidens)</span>' +
+      '</div>' +
+      '<div class="ai-summary">' + escapeHtml(a.summary || '') + '</div>' +
+      competitorsHtml +
+      (a.buildability_note ? '<div class="ai-detail"><strong>Vurdering:</strong> ' + escapeHtml(a.buildability_note) + '</div>' : '') +
+      (a.reasoning ? '<div class="ai-detail" style="margin-top:4px"><strong>Begrunnelse:</strong> ' + escapeHtml(a.reasoning) + '</div>' : '') +
+    '</div>';
+  }
+
+  async function analyzeNotice(id) {
+    const btn = document.getElementById('ai-btn-' + CSS.escape(id));
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="ai-spinner"></span> Analyserer...';
+    }
+
+    try {
+      const resp = await fetch(SUPABASE_URL + '/functions/v1/claude-analysis', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ notice_id: id })
+      });
+
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const result = await resp.json();
+      aiAnalyses[id] = result;
+      render();
+      showToast('AI-analyse fullf\u00F8rt');
+    } catch (err) {
+      console.error('AI-analysefeil:', err);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4c0 2 2 3 2 6H14c0-3 2-4 2-6a4 4 0 0 0-4-4z"/><line x1="10" y1="16" x2="14" y2="16"/><line x1="10" y1="19" x2="14" y2="19"/><line x1="11" y1="22" x2="13" y2="22"/></svg> Analyser med AI';
+      }
+      showToast('Feil ved AI-analyse');
+    }
+  }
+
+  // ── Page switching ─────────────────────────
+  window.switchPage = function(page) {
+    currentPage = page;
+    notices = getNoticesRef();
+    activeTab = 'nye';
+    expandedId = null;
+    selectedBuyers = null;
+    sortColumn = 'published';
+    sortDirection = 'desc';
+
+    // Update hash without triggering hashchange
+    history.replaceState(null, '', '#' + page);
+
+    // Update page nav buttons
+    document.querySelectorAll('.page-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.page === page);
+    });
+
+    // Update header title
+    document.getElementById('pageTitle').textContent = pageTitles[page] || 'Doffin Monitor';
+
+    // Update tab buttons active state
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.tab === activeTab);
+    });
+
+    // Reset sort headers
+    updateSortHeaders();
+
+    // Update filter
+    updateFilterButton();
+
+    updateSubtitle();
+    updatePageBadges();
+    render();
+  };
+
   window.app = {
     toggleExpand: toggleExpand,
     setStatus: setStatus,
@@ -1485,7 +1850,8 @@
     onCommentInput: onCommentInput,
     saveComment: saveComment,
     sortBy: sortBy,
-    setSubStatus: setSubStatus
+    setSubStatus: setSubStatus,
+    analyzeNotice: analyzeNotice
   };
 
   // ── CPV code management ───────────────────
