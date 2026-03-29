@@ -1331,7 +1331,7 @@
             '<a class="doffin-link" href="https://doffin.no/notices/' + encodeURIComponent(n.id) + '" target="_blank" rel="noopener" title="Åpne i Doffin">' + icons.external + '</a>' +
             (n.competitionDocsUrl ? '<a class="doffin-link" href="' + escapeHtml(n.competitionDocsUrl) + '" target="_blank" rel="noopener" title="Åpne i tilbudsportal">' + icons.portal + '</a>' : '') +
           '</div></td>' +
-          '<td class="col-buyer"><span class="buyer-text" title="' + escapeHtml(buyer) + '">' + escapeHtml(buyer) + '</span></td>' +
+          '<td class="col-buyer"><span class="buyer-text" title="' + escapeHtml(buyer) + '" onclick="app.filterByBuyer(\'' + escapeHtml(buyer.replace(/'/g, "\\'")) + '\')" style="cursor:pointer">' + escapeHtml(buyer) + '</span></td>' +
           '<td class="col-place"><span class="place-text">' + escapeHtml(place) + '</span></td>' +
           '<td class="col-id"><span class="id-text">' + escapeHtml(n.internalId || '\u2014') + '</span></td>' +
           '<td class="col-published"><span class="date-text">' + pubDate + '</span></td>' +
@@ -2037,12 +2037,20 @@
     }
   });
 
+  function filterByBuyer(name) {
+    selectedBuyers = new Set([name]);
+    updateFilterButton();
+    render();
+    showToast('Filtrert på ' + name);
+  }
+
   window.app = Object.assign(window.app, {
     toggleFilter: toggleFilter,
     toggleBuyer: toggleBuyer,
     filterSelectAll: filterSelectAll,
     filterSelectNone: filterSelectNone,
-    onFilterSearch: onFilterSearch
+    onFilterSearch: onFilterSearch,
+    filterByBuyer: filterByBuyer
   });
 
   init();
