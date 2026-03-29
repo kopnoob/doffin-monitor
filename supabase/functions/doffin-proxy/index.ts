@@ -1,7 +1,7 @@
 import "@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
-const DOFFIN_API_URL = "https://api.doffin.no/webclient/api/v2/search-api/search"
+const DOFFIN_SEARCH_URL = "https://api.doffin.no/webclient/api/v2/search-api/search"
 const DOFFIN_NOTICE_URL = "https://api.doffin.no/webclient/api/v2/notices-api/notices"
 
 const corsHeaders = {
@@ -10,7 +10,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, OPTIONS",
 }
 
-function buildRequestBody(page: number, cpvCodes: string[]) {
+// ── Doffin search helpers ───────────────────────────
+
+function buildSearchBody(page: number, cpvCodes: string[], typeFilter: string[]) {
   return {
     numHitsPerPage: 100,
     page,
@@ -19,7 +21,7 @@ function buildRequestBody(page: number, cpvCodes: string[]) {
     facets: {
       cpvCodesLabel: { checkedItems: [] },
       cpvCodesId: { checkedItems: cpvCodes },
-      type: { checkedItems: ["DYNAMIC_PURCHASING_SCHEME"] },
+      type: { checkedItems: typeFilter },
       status: { checkedItems: ["ACTIVE"] },
       contractNature: { checkedItems: ["SERVICES"] },
       publicationDate: { from: null, to: null },
@@ -30,6 +32,41 @@ function buildRequestBody(page: number, cpvCodes: string[]) {
   }
 }
 
+async function fetchAllPages(cpvCodes: string[], typeFilter: string[]) {
+  const firstRes = await fetch(DOFFIN_SEARCH_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(buildSearchBody(1, cpvCodes, typeFilter)),
+  })
+  if (!firstRes.ok) throw new Error(`Doffin API error: ${firstRes.status}`)
+
+  const firstData = await firstRes.json()
+  const hits = [...firstData.hits]
+  const totalPages = Math.ceil(firstData.numHitsTotal / 100)
+
+  if (totalPages > 1) {
+    const promises = []
+    for (let page = 2; page <= totalPages; page++) {
+      promises.push(
+        fetch(DOFFIN_SEARCH_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(buildSearchBody(page, cpvCodes, typeFilter)),
+        }).then(r => {
+          if (!r.ok) throw new Error(`Doffin page ${page}: ${r.status}`)
+          return r.json()
+        })
+      )
+    }
+    for (const pageData of await Promise.all(promises)) {
+      hits.push(...pageData.hits)
+    }
+  }
+  return hits
+}
+
+// ── Eform parsing ───────────────────────────────────
+
 interface EformSection {
   title: string
   label: string | null
@@ -39,10 +76,7 @@ interface EformSection {
 
 function findInternalId(eform: EformSection[]): string | null {
   for (const block of eform) {
-    if (block.label === "Intern identifikator" && block.value) {
-      return block.value
-    }
-    if (block.label === "Internal identifier" && block.value) {
+    if ((block.label === "Intern identifikator" || block.label === "Internal identifier") && block.value) {
       return block.value
     }
     if (block.sections) {
@@ -52,6 +86,45 @@ function findInternalId(eform: EformSection[]): string | null {
   }
   return null
 }
+
+function isRealDps(eform: EformSection[]): boolean {
+  for (const block of eform) {
+    const label = (block.label || "").toLowerCase()
+    const value = (block.value || "").toLowerCase()
+    if (label.includes("dynamisk innkjøpsordning") && value && value.trim()) return true
+    if (label.includes("dynamic purchasing") && value && value.trim()) return true
+    if (value.includes("dynamisk innkjøpsordning")) return true
+    if (value.includes("dynamic purchasing")) return true
+    if (block.sections && isRealDps(block.sections)) return true
+  }
+  return false
+}
+
+// ── Notice detail fetcher ───────────────────────────
+
+interface NoticeDetail {
+  internalId: string | null
+  competitionDocsUrl: string | null
+  isDps: boolean
+}
+
+async function fetchNoticeDetail(id: string): Promise<NoticeDetail | null> {
+  try {
+    const res = await fetch(`${DOFFIN_NOTICE_URL}/${id}`)
+    if (!res.ok) return null
+    const d = await res.json()
+    const eform = d.eform || []
+    return {
+      internalId: findInternalId(eform),
+      competitionDocsUrl: d.competitionDocsUrl || null,
+      isDps: isRealDps(eform),
+    }
+  } catch {
+    return null
+  }
+}
+
+// ── Main handler ────────────────────────────────────
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -64,7 +137,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     )
 
-    // Get CPV codes from database
+    // Get CPV codes
     const { data: cpvRows } = await supabase
       .from("cpv_codes")
       .select("code")
@@ -78,71 +151,97 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Fetch first page
-    const firstRes = await fetch(DOFFIN_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildRequestBody(1, cpvCodes)),
-    })
+    // ── Step 1: Two parallel searches ───────────────
+    const [dpsHits, allHits] = await Promise.all([
+      fetchAllPages(cpvCodes, ["DYNAMIC_PURCHASING_SCHEME"]),
+      fetchAllPages(cpvCodes, []),
+    ])
 
-    if (!firstRes.ok) {
-      throw new Error(`Doffin API error: ${firstRes.status}`)
+    const dpsIds = new Set(dpsHits.map((h: { id: string }) => h.id))
+    // Candidates: in broad search but not in DPS search
+    const candidateHits = allHits.filter((h: { id: string }) => !dpsIds.has(h.id))
+
+    // ── Step 2: Load cache ──────────────────────────
+    const allIds = [...dpsHits, ...candidateHits].map((h: { id: string }) => h.id)
+    const { data: cacheRows } = await supabase
+      .from("notice_cache")
+      .select("*")
+      .in("notice_id", allIds)
+
+    const cache: Record<string, {
+      is_dps: boolean
+      internal_id: string | null
+      competition_docs_url: string | null
+    }> = {}
+    for (const row of cacheRows || []) {
+      cache[row.notice_id] = row
     }
 
-    const firstData = await firstRes.json()
-    const allHits = [...firstData.hits]
-    const totalHits = firstData.numHitsTotal
-    const totalPages = Math.ceil(totalHits / 100)
+    // ── Step 3: Fetch details for uncached notices ──
+    const uncachedIds = allIds.filter(id => !(id in cache))
 
-    // Fetch remaining pages in parallel
-    if (totalPages > 1) {
-      const pagePromises = []
-      for (let page = 2; page <= totalPages; page++) {
-        pagePromises.push(
-          fetch(DOFFIN_API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(buildRequestBody(page, cpvCodes)),
-          }).then((res) => {
-            if (!res.ok) throw new Error(`Doffin page ${page}: ${res.status}`)
-            return res.json()
-          })
-        )
-      }
-      const pageResults = await Promise.all(pagePromises)
-      for (const pageData of pageResults) {
-        allHits.push(...pageData.hits)
-      }
-    }
+    if (uncachedIds.length > 0) {
+      const BATCH = 20
+      for (let i = 0; i < uncachedIds.length; i += BATCH) {
+        const batch = uncachedIds.slice(i, i + BATCH)
+        const details = await Promise.all(batch.map(id => fetchNoticeDetail(id)))
 
-    // Fetch internal identifiers for all hits in parallel (batched)
-    const BATCH_SIZE = 20
-    for (let i = 0; i < allHits.length; i += BATCH_SIZE) {
-      const batch = allHits.slice(i, i + BATCH_SIZE)
-      const detailPromises = batch.map((hit: { id: string }) =>
-        fetch(`${DOFFIN_NOTICE_URL}/${hit.id}`)
-          .then(res => res.ok ? res.json() : null)
-          .catch(() => null)
-      )
-      const details = await Promise.all(detailPromises)
-      for (let j = 0; j < batch.length; j++) {
-        const detail = details[j]
-        if (detail) {
-          if (detail.eform) {
-            const internalId = findInternalId(detail.eform)
-            if (internalId) {
-              allHits[i + j].internalId = internalId
-            }
+        const rows: {
+          notice_id: string
+          is_dps: boolean
+          internal_id: string | null
+          competition_docs_url: string | null
+          checked_at: string
+        }[] = []
+
+        for (let j = 0; j < batch.length; j++) {
+          const detail = details[j]
+          const id = batch[j]
+          const isDpsTagged = dpsIds.has(id)
+          const row = {
+            notice_id: id,
+            is_dps: isDpsTagged || (detail?.isDps ?? false),
+            internal_id: detail?.internalId ?? null,
+            competition_docs_url: detail?.competitionDocsUrl ?? null,
+            checked_at: new Date().toISOString(),
           }
-          if (detail.competitionDocsUrl) {
-            allHits[i + j].competitionDocsUrl = detail.competitionDocsUrl
-          }
+          rows.push(row)
+          cache[id] = row
+        }
+
+        if (rows.length > 0) {
+          await supabase.from("notice_cache").upsert(rows, { onConflict: "notice_id" })
         }
       }
     }
 
+    // ── Step 4: Build result set ────────────────────
+    // DPS-tagged hits: always include, enrich from cache
+    const resultHits = dpsHits.map((h: Record<string, unknown>) => {
+      const c = cache[h.id as string]
+      return {
+        ...h,
+        internalId: c?.internal_id ?? null,
+        competitionDocsUrl: c?.competition_docs_url ?? null,
+        mistagged: false,
+      }
+    })
+
+    // Mistagged DPS: candidates confirmed as DPS via eform
+    for (const h of candidateHits) {
+      const c = cache[h.id]
+      if (c?.is_dps) {
+        resultHits.push({
+          ...h,
+          internalId: c.internal_id ?? null,
+          competitionDocsUrl: c.competition_docs_url ?? null,
+          mistagged: true,
+        })
+      }
+    }
+
     return new Response(
-      JSON.stringify({ numHitsTotal: totalHits, hits: allHits }),
+      JSON.stringify({ numHitsTotal: resultHits.length, hits: resultHits }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (err) {

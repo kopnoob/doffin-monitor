@@ -1464,6 +1464,19 @@
     rammeavtalerNotices = mergeUserData(rammeavtalerHits, userMap);
     systemerNotices = mergeUserData(systemerHits, userMap);
 
+    // Auto-set "feiltagget" comment on mistagged DPS notices
+    for (const n of dpsNotices) {
+      if (n.mistagged && !n.userComment && !n.userStatus) {
+        n.userComment = 'feiltagget';
+        sb.from('user_notices').upsert({
+          notice_id: n.id,
+          status: null,
+          comment: 'feiltagget',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'notice_id' }).then(() => {});
+      }
+    }
+
     // Point notices to current page
     notices = getNoticesRef();
   }
