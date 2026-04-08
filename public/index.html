@@ -997,6 +997,30 @@
     .page-btn { padding: 8px 10px; font-size: 0.75rem; }
   }
 </style>
+<script>
+(function(){
+  // Enkel client-side passordbeskyttelse. Ikke ekte sikkerhet — bare en dørstopper.
+  // Egen sessionStorage-key for å ikke kollidere med andre instanser p\u00E5 samme origin.
+  var KEY = 'dmpw_orig';
+  var PW = 'commit';
+  if (sessionStorage.getItem(KEY) === PW) return;
+  for (var i = 0; i < 3; i++) {
+    var entry = prompt('Passord:');
+    if (entry === null) break;
+    if (entry === PW) {
+      sessionStorage.setItem(KEY, PW);
+      return;
+    }
+  }
+  document.documentElement.innerHTML =
+    '<head><meta charset="UTF-8"><title>Tilgang avvist</title></head>' +
+    '<body style="font-family:system-ui,sans-serif;padding:3rem;text-align:center;color:#333">' +
+    '<h1 style="font-weight:500">Tilgang avvist</h1>' +
+    '<p>Last siden p\u00E5 nytt for \u00E5 pr\u00F8ve igjen.</p>' +
+    '</body>';
+  throw new Error('access denied');
+})();
+</script>
 </head>
 <body>
 
