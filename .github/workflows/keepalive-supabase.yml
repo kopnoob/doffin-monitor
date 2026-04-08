@@ -1,0 +1,38 @@
+name: Keep Supabase Alive
+
+# Holder Supabase free tier-prosjektet aktivt ved å gjøre en lett spørring
+# mot databasen jevnlig. Free tier pauses etter 7 dager uten aktivitet.
+
+on:
+  schedule:
+    # Kjører kl. 07:13 UTC hver 3. dag (offset fra :00 for å unngå API-spike)
+    - cron: '13 7 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        run: |
+          set -e
+          SUPABASE_URL="https://gicioyjyyoxlqaiqziwh.supabase.co"
+          SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpY2lveWp5eW94bHFhaXF6aXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NDM1MTcsImV4cCI6MjA5MDIxOTUxN30.cP3DuXw-wtTtitNMKKvvKu1aQn-MRYqW2O7GyG5ipjQ"
+
+          response=$(curl -sS -w "\n%{http_code}" \
+            "$SUPABASE_URL/rest/v1/cpv_codes?select=code&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+
+          echo "HTTP $status"
+          echo "Response: $body"
+
+          if [ "$status" -ne 200 ]; then
+            echo "::error::Supabase ping failed with status $status"
+            exit 1
+          fi
+
+          echo "Supabase keepalive ping ok"
