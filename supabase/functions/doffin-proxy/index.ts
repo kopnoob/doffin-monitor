@@ -137,12 +137,21 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     )
 
-    // Get CPV codes
-    const { data: cpvRows } = await supabase
-      .from("cpv_codes")
-      .select("code")
-      .order("code")
-    const cpvCodes = (cpvRows || []).map((r: { code: string }) => r.code)
+    // Get CPV codes: ?cpv=a,b,c gives a caller its own list (Rebase keeps theirs
+    // on prosjekt.commit.no/rebase/dio); without it, the shared cpv_codes table.
+    const cpvParam = new URL(req.url).searchParams.get("cpv")
+    let cpvCodes: string[]
+    if (cpvParam !== null) {
+      cpvCodes = [...new Set(cpvParam.split(",").map(c => c.trim()).filter(c => /^\d{8}$/.test(c)))]
+        .sort()
+        .slice(0, 100)
+    } else {
+      const { data: cpvRows } = await supabase
+        .from("cpv_codes")
+        .select("code")
+        .order("code")
+      cpvCodes = (cpvRows || []).map((r: { code: string }) => r.code)
+    }
 
     if (cpvCodes.length === 0) {
       return new Response(
