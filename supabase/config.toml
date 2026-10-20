@@ -405,3 +405,11 @@ entrypoint = "./functions/doffin-proxy/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/doffin-proxy/*.html" ]
+
+# Claude-statuskanal: kalles av Claude via web_fetch/curl uten Supabase-JWT.
+# Autentisering skjer med engangsnøkkelen i prompten (se index.ts).
+[functions.claude-task]
+enabled = true
+verify_jwt = false
+import_map = "./functions/claude-task/deno.json"
+entrypoint = "./functions/claude-task/index.ts"
