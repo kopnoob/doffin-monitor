@@ -2100,6 +2100,9 @@
   const CLAUDE_POLL_MS = 20000;
   // Hvor lenge en tilstand regnes som aktiv uten nye oppdateringer fra Claude.
   const CLAUDE_STALE_MS = { queued: 2 * 3600e3, working: 12 * 3600e3, waiting: 7 * 24 * 3600e3 };
+  // Hvor lenge siden poller etter at Claude meldte seg ferdig, så «påmeldt» og «avbryt»
+  // som kommer etterpå også vises uten at siden må lastes på nytt.
+  const CLAUDE_DONE_POLL_MS = 30 * 60e3;
   const CLAUDE_LABELS = { queued: 'Lim inn i Claude', working: 'Claude jobber', waiting: 'Venter på deg', done: 'Claude ferdig' };
 
   let claudeModalNoticeId = null;
@@ -2423,9 +2426,18 @@
   // ── Polling av status mens Claude jobber ────
   let claudePollTimer = null;
 
+  // Poller mens Claude jobber, og en stund etter at den er ferdig.
+  function claudePollWanted(n) {
+    const info = claudeInfo(n);
+    if (!info) return false;
+    if (info.active) return true;
+    if (info.state !== 'done') return false;
+    const ts = n.claudeUpdatedAt ? new Date(n.claudeUpdatedAt).getTime() : NaN;
+    return !isNaN(ts) && Date.now() - ts < CLAUDE_DONE_POLL_MS;
+  }
+
   function anyClaudeActive() {
-    return [dpsNotices, rammeavtalerNotices, systemerNotices].some(arr =>
-      arr.some(n => { const i = claudeInfo(n); return i && i.active; }));
+    return [dpsNotices, rammeavtalerNotices, systemerNotices].some(arr => arr.some(claudePollWanted));
   }
 
   function scheduleClaudePoll() {
