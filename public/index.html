@@ -1282,7 +1282,7 @@
     <table>
       <thead>
         <tr>
-          <th class="col-actions">Handlinger</th>
+          <th class="col-actions sortable" data-sort="status" onclick="app.sortBy('status')">Status <span class="sort-icon">&#x2195;</span></th>
           <th class="col-name sortable" data-sort="name" onclick="app.sortBy('name')">Innkj&oslash;psordning <span class="sort-icon">&#x2195;</span></th>
           <th class="col-buyer sortable" data-sort="buyer" onclick="app.sortBy('buyer')">Kunde <span class="sort-icon">&#x2195;</span></th>
           <th class="col-place sortable" data-sort="place" onclick="app.sortBy('place')">Sted <span class="sort-icon">&#x2195;</span></th>
@@ -1441,6 +1441,14 @@
         case 'deadline':
           va = new Date(a.deadline || 0).getTime();
           vb = new Date(b.deadline || 0).getTime();
+          break;
+        case 'status':
+          va = statusRank(a);
+          vb = statusRank(b);
+          if (va === vb) {
+            // Likt: nyeste først, uansett retning
+            return new Date(b.publicationDate || 0).getTime() - new Date(a.publicationDate || 0).getTime();
+          }
           break;
         case 'comment':
           va = (a.userComment || '').toLowerCase();
@@ -1962,6 +1970,17 @@
       switchPage(hash);
     }
   });
+
+  // Rekkefølge for sortering på status: hovedstatus, så understatus, så om Claude jobber med den.
+  const STATUS_ORDER = { null: 0, relevant: 1, enrolled: 2, dismissed: 3 };
+  const SUB_STATUS_ORDER = { 'vurdering': 0, 'under-arbeid': 1, 'tilbud-sendt': 2, 'blokkert': 3 };
+  const CLAUDE_ORDER = { working: 0, waiting: 1, queued: 2, done: 3 };
+  function statusRank(n) {
+    const main = STATUS_ORDER[n.userStatus || null] ?? 0;
+    const sub = n.userStatus ? (SUB_STATUS_ORDER[n.userSubStatus || 'vurdering'] ?? 0) : 0;
+    const cl = n.claudeState ? (CLAUDE_ORDER[n.claudeState] ?? 4) : 5;
+    return main * 100 + sub * 10 + cl;
+  }
 
   // ── Sort by column ─────────────────────────
   function sortBy(column) {
