@@ -395,9 +395,13 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
 
+# Ingen av funksjonene krever Supabase-JWT; de krever i stedet en leietakernøkkel
+# i x-doffin-key (supabase/functions/_shared/tenant.ts). Anon-nøkkelen er offentlig
+# og ville uansett ikke beskyttet noe. Hold verify_jwt = false, så en ny deploy ikke
+# endrer oppførselen.
 [functions.doffin-proxy]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/doffin-proxy/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -413,3 +417,15 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/claude-task/deno.json"
 entrypoint = "./functions/claude-task/index.ts"
+
+[functions.doffin-proxy-open]
+enabled = true
+verify_jwt = false
+import_map = "./functions/doffin-proxy-open/deno.json"
+entrypoint = "./functions/doffin-proxy-open/index.ts"
+
+[functions.claude-analysis]
+enabled = true
+verify_jwt = false
+import_map = "./functions/claude-analysis/deno.json"
+entrypoint = "./functions/claude-analysis/index.ts"

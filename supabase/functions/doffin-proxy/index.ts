@@ -1,12 +1,13 @@
 import "@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { authorize } from "../_shared/tenant.ts"
 
 const DOFFIN_SEARCH_URL = "https://api.doffin.no/webclient/api/v2/search-api/search"
 const DOFFIN_NOTICE_URL = "https://api.doffin.no/webclient/api/v2/notices-api/notices"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-doffin-key",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
 }
 
@@ -137,17 +138,24 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     )
 
+    // Nøkkelen i x-doffin-key avgjør hvem som spør (se _shared/tenant.ts).
+    const { tenant, denied } = await authorize(req, supabase, ["commit", "rebase", "accelat"], corsHeaders)
+    if (denied) return denied
+
     // Get CPV codes: ?cpv=a,b,c gives a caller its own list (Rebase keeps theirs
-    // on prosjekt.commit.no/rebase/dio); without it, the shared cpv_codes table.
+    // on prosjekt.commit.no/rebase/dio, Accelat in accelat_cpv_codes); without it,
+    // the caller's own table: cpv_codes for Commit, accelat_cpv_codes for Accelat.
     const cpvParam = new URL(req.url).searchParams.get("cpv")
     let cpvCodes: string[]
     if (cpvParam !== null) {
       cpvCodes = [...new Set(cpvParam.split(",").map(c => c.trim()).filter(c => /^\d{8}$/.test(c)))]
         .sort()
         .slice(0, 100)
+    } else if (tenant === "rebase") {
+      cpvCodes = []
     } else {
       const { data: cpvRows } = await supabase
-        .from("cpv_codes")
+        .from(tenant === "accelat" ? "accelat_cpv_codes" : "cpv_codes")
         .select("code")
         .order("code")
       cpvCodes = (cpvRows || []).map((r: { code: string }) => r.code)

@@ -1,5 +1,6 @@
 import "@supabase/functions-js/edge-runtime.d.ts"
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { authorize } from "../_shared/tenant.ts"
 import {
   applyEvent,
   cleanNote,
@@ -24,10 +25,14 @@ import {
 // GET støttes fordi web_fetch i claude.ai kun gjør GET mot lenker som står i
 // meldingen. Funksjonen må derfor deployes uten JWT-krav (verify_jwt = false);
 // nøkkelen er autentiseringen og gir bare tilgang til én kunngjøring.
+//
+// Å opprette en oppgave krever i tillegg Commit sin leietakernøkkel i
+// x-doffin-key (se _shared/tenant.ts). Statushendelsene fra Claude har bare
+// engangsnøkkelen, for Claude kan ikke sende egne headere.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-doffin-key",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 }
 
@@ -188,6 +193,8 @@ Deno.serve(async (req) => {
         return text("FEIL: Forventet JSON-body.\n\n" + HELP, 400)
       }
       if (body.action === "create") {
+        const { denied } = await authorize(req, sb, ["commit"], corsHeaders)
+        if (denied) return denied
         return await createTask(sb, String(body.token ?? ""), String(body.notice_id ?? ""))
       }
       const token = String(body.token ?? body.t ?? "")

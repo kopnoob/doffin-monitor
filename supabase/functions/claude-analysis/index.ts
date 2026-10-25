@@ -1,12 +1,13 @@
 import "@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { authorize } from "../_shared/tenant.ts"
 
 const DOFFIN_NOTICE_URL = "https://api.doffin.no/webclient/api/v2/notices-api/notices"
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-doffin-key",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
@@ -42,6 +43,15 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    )
+
+    // Bruker Anthropic-kreditt: bare Commit og Rebase (begge viser AI-analysen).
+    const { denied } = await authorize(req, supabase, ["commit", "rebase"], corsHeaders)
+    if (denied) return denied
+
     const { notice_id } = await req.json()
     if (!notice_id) {
       return new Response(
@@ -49,11 +59,6 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    )
 
     // Check cache first
     const { data: cached } = await supabase
